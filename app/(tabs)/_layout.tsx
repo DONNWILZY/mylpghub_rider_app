@@ -1,5 +1,1 @@
-import { RoleTabs } from '../../src/account';
-
-export default function Layout() {
-  return <RoleTabs />;
-}
+export { RiderTabs as default } from '../../src/components/RiderTabs';

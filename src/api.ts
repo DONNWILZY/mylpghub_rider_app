@@ -1,3 +1,5 @@
+import type { AssignedTrip, PickupCode, Position, TrackingStatus } from './features/trips/contracts';
+
 export class ApiError extends Error {
   constructor(message: string, readonly status = 0, readonly code?: string) {
     super(message);
@@ -20,11 +22,15 @@ export type RiderAccount = {
     status: string;
     rider_type?: string | null;
     price_per_km?: string | number | null;
+    vehicle_type?: string | null;
+    vehicle_number?: string | null;
+    is_online?: boolean;
   } | null;
   overview: {
     account_name: string;
     identity_status: string;
     trip_quotes_enabled: boolean;
+    can_manage_availability?: boolean;
   };
   onboarding: {
     account_ready: boolean;
@@ -32,9 +38,11 @@ export type RiderAccount = {
     required_documents: string[];
     uploaded_document_types: string[];
     review_required: boolean;
+    can_submit?: boolean;
   };
-  review_history: Array<{ id: number; to_status?: string | null; action: string; created_at?: string | null }>;
+  review_history: Array<{ id: number; to_status?: string | null; action: string; reason?: string | null; created_at?: string | null }>;
   onboarding_enabled: boolean;
+  portal_available?: boolean;
   dispatch_enabled: boolean;
   payouts_enabled: boolean;
 };
@@ -49,8 +57,8 @@ export function createApi(baseUrl: string | undefined, allowInsecure = false) {
     path: string,
     { token, body, method = 'GET', signal }: {
       token?: string;
-      body?: Record<string, string>;
-      method?: 'GET' | 'POST';
+      body?: Record<string, unknown> | FormData;
+      method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
       signal?: AbortSignal;
     } = {},
   ): Promise<ApiEnvelope<T>> {
@@ -62,11 +70,12 @@ export function createApi(baseUrl: string | undefined, allowInsecure = false) {
     const abort = () => controller.abort();
     if (signal?.aborted) abort();
     signal?.addEventListener('abort', abort, { once: true });
+    const multipart = body instanceof FormData;
     let timedOut = false;
     const timeout = setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, 15000);
+    }, multipart ? 60000 : 15000);
 
     try {
       const response = await fetch(base + path, {
@@ -74,10 +83,10 @@ export function createApi(baseUrl: string | undefined, allowInsecure = false) {
         signal: controller.signal,
         headers: {
           Accept: 'application/json',
-          ...(body ? { 'Content-Type': 'application/json' } : {}),
+          ...(body && !multipart ? { 'Content-Type': 'application/json' } : {}),
           ...(token ? { Authorization: 'Bearer ' + token } : {}),
         },
-        ...(body ? { body: JSON.stringify(body) } : {}),
+        ...(body ? { body: multipart ? body : JSON.stringify(body) } : {}),
       });
       const payload: ApiEnvelope<T> | null = await response.json().catch(() => null);
 
@@ -111,6 +120,11 @@ export function createApi(baseUrl: string | undefined, allowInsecure = false) {
   }
 
   return {
+    async register(input: {
+      name: string; username: string; phone: string; email: string; password: string; password_confirmation: string;
+    }) {
+      await request('/register', { method: 'POST', body: input });
+    },
     async login(email: string, password: string): Promise<SignInResult> {
       const response = await request<SignInData>('/login', { method: 'POST', body: { email, password } });
       if (response.requires_2fa) return { kind: 'challenge', email: data(response).email ?? email };
@@ -127,6 +141,21 @@ export function createApi(baseUrl: string | undefined, allowInsecure = false) {
     async resendVerification(email: string) {
       await request('/resend-verification-otp', { method: 'POST', body: { email } });
     },
+    async requestPasswordCode(email: string) {
+      await request('/forgot-password', { method: 'POST', body: { email } });
+    },
+    async verifyPasswordCode(email: string, code: string) {
+      const result = data(await request<{ email: string; token: string }>('/verify-reset-otp', {
+        method: 'POST', body: { email, code },
+      }));
+      if (!result.token || !result.email) throw new ApiError('The server did not issue a reset token.');
+      return result;
+    },
+    async resetPassword(email: string, token: string, password: string, confirmation: string) {
+      await request('/reset-password', {
+        method: 'POST', body: { email, token, password, password_confirmation: confirmation },
+      });
+    },
     async me(token: string, signal?: AbortSignal) {
       return data(await request<{ user: User }>('/me', { token, signal })).user;
     },
@@ -135,6 +164,46 @@ export function createApi(baseUrl: string | undefined, allowInsecure = false) {
     },
     async riderAccount(token: string, signal?: AbortSignal) {
       return data(await request<RiderAccount>('/rider/me', { token, signal }));
+    },
+    async saveRiderDraft(token: string, body: {
+      rider_type: string; vehicle_type: string; vehicle_number: string; price_per_km?: number;
+    }) {
+      await request('/rider/draft', { token, method: 'PUT', body });
+    },
+    async uploadRiderDocument(token: string, body: FormData) {
+      await request('/rider/documents', { token, method: 'POST', body });
+    },
+    async submitRider(token: string) {
+      await request('/rider/submit', { token, method: 'POST' });
+    },
+    async riderAvailability(token: string, online: boolean) {
+      await request('/rider/availability', { token, method: 'PUT', body: { is_online: online } });
+    },
+    async assignedTrips(token: string, signal?: AbortSignal) {
+      return data(await request<{ trips: AssignedTrip[] }>('/rider/delivery-trips/assigned', { token, signal })).trips;
+    },
+    async tripTracking(token: string, id: number, signal?: AbortSignal) {
+      return data(await request<TrackingStatus>('/rider/delivery-trips/' + id + '/tracking', { token, signal }));
+    },
+    async publishTripLocation(token: string, id: number, sessionId: string, point: Position) {
+      return data(await request<{ recorded_at: string; expires_at: string }>('/rider/delivery-trips/' + id + '/tracking', {
+        token, method: 'POST', body: {
+          consent: true, session_id: sessionId, latitude: point.latitude, longitude: point.longitude,
+          accuracy_meters: point.accuracy != null && point.accuracy >= 0 && point.accuracy <= 1000 ? Math.round(point.accuracy) : null,
+        },
+      }));
+    },
+    async stopTripSharing(token: string, id: number, sessionId: string) {
+      await request('/rider/delivery-trips/' + id + '/tracking', { token, method: 'DELETE', body: { session_id: sessionId } });
+    },
+    async issuePickup(token: string, id: number) {
+      return data(await request<PickupCode>('/rider/delivery-trips/' + id + '/pickup-code', { token, method: 'POST' }));
+    },
+    async acknowledgePickup(token: string, id: number) {
+      await request('/rider/delivery-trips/' + id + '/acknowledge-pickup', { token, method: 'POST' });
+    },
+    async verifyDropoff(token: string, id: number, code: string) {
+      await request('/rider/delivery-trips/' + id + '/verify-delivery', { token, method: 'POST', body: { code } });
     },
   };
 }

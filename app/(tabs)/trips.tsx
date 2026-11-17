@@ -1,1 +1,1 @@
-export { RiderTrips as default } from '../../src/rider';
+export { TripList as default } from '../../src/features/trips/TripList';

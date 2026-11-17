@@ -19,6 +19,23 @@
         {
           "configureAndroidBackup": true
         }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/brand-mark.png",
+          "imageWidth": 118,
+          "resizeMode": "contain",
+          "backgroundColor": "#F0FDF4"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow MyQuickGas Rider to show your location and share it during an active delivery when you ask.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
+        }
       ]
     ],
     "ios": {

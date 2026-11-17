@@ -1,1 +1,1 @@
-export { RiderOverview as default } from '../../src/rider';
+export { RiderProfile as default } from '../../src/features/profile/RiderProfile';

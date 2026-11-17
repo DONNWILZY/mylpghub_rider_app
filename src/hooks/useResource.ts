@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ApiError } from './api';
-import { getErrorMessage, useSession } from './session';
+import { ApiError } from '../api';
+import { getErrorMessage, useSession } from '../session';
 
 type Result<T> =
   | { request: string; status: 'success'; data: T }
