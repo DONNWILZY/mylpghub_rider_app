@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+dist/
+.env*
+!.env.example
+expo-env.d.ts
+
+# Expo generates native projects on demand.
+/android/
+/ios/
+*.jks
+*.keystore
+*.mobileprovision
+npm-debug.log*

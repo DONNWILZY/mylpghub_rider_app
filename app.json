@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "MyQuickGas Rider",
+    "slug": "myquickgas-rider",
+    "scheme": "myquickgas-rider",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "platforms": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "icon": "./assets/icon.png",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
+        }
+      ]
+    ],
+    "ios": {
+      "bundleIdentifier": "site.mylpg.rider",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "site.mylpg.rider"
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/icon.png"
+    }
+  }
+}
