@@ -7,6 +7,7 @@ import type { AppIcon } from './ActionIcon';
 
 const routes: ReadonlyArray<{ route: string; title: string; icon: AppIcon }> = [
   { route: 'index', title: 'Rider account', icon: 'person-circle-outline' },
+  { route: 'pickups', title: 'Pickups', icon: 'cube-outline' },
   { route: 'trips', title: 'Trips', icon: 'navigate-outline' },
   { route: 'account', title: 'Account', icon: 'person-circle-outline' },
 ];

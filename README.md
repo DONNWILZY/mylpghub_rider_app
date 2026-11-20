@@ -23,3 +23,7 @@ The rider explicitly starts GPS and then elects to share with the customer. Shar
 For a staging integration run, use the Laravel `feature/delivery-trip-live-tracking` branch. The branch adds `MARKETPLACE_DELIVERY_TRIP_TRACKING_ENABLED`, which defaults to false and is effective only outside production, with the existing delivery trip offers and assignment gates. Enable pickup and drop-off gates to complete the verified handovers. Multi-instance staging must use a shared Laravel cache for the latest position and stopped-session records.
 
 The rider sends one fresh position approximately every 21 seconds when GPS is available. The customer app can poll `GET /api/v1/delivery-trips/{trip}/tracking` every ten seconds for the delivery owner's position feed, straight-line remaining distance, and arrival state. A position expires after 90 seconds without a fresh update. The customer app map is a separate implementation step.
+
+## Customer and business pickups
+
+Set `EXPO_PUBLIC_API_URL` to the deployed rider_backend origin followed by `/api/v1` before building the app. The Pickups tab uses the same rider sign-in as Trips. An approved rider can share one foreground location, accept a nearby request, see the collection and delivery addresses, and mark the parcel collected and delivered. Refresh the queue for new requests. Going offline clears the discovery location. See the [pickup API guide](https://github.com/DONNWILZY/rider_backend/blob/master/docs/pickups.md) for dispatch settings.

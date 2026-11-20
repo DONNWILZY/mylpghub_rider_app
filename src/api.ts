@@ -1,3 +1,4 @@
+import type { PickupAction, PickupQueue } from './features/pickups/contracts';
 import type { AssignedTrip, PickupCode, Position, TrackingStatus } from './features/trips/contracts';
 
 export class ApiError extends Error {
@@ -50,18 +51,20 @@ export type RiderAccount = {
 type SignInData = { token?: string; user?: User; email?: string };
 type SignInResult = { kind: 'challenge'; email: string } | { kind: 'session'; token: string; user: User };
 
+type RequestOptions = {
+  token?: string;
+  body?: Record<string, unknown> | FormData;
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  signal?: AbortSignal;
+};
+
 export function createApi(baseUrl: string | undefined, allowInsecure = false) {
   const base = baseUrl?.trim().replace(/\/+$/, '');
 
-  async function request<T>(
+  async function requestJson<T>(
     path: string,
-    { token, body, method = 'GET', signal }: {
-      token?: string;
-      body?: Record<string, unknown> | FormData;
-      method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
-      signal?: AbortSignal;
-    } = {},
-  ): Promise<ApiEnvelope<T>> {
+    { token, body, method = 'GET', signal }: RequestOptions = {},
+  ): Promise<T> {
     if (!base || !/^https?:\/\/[^/?#\s@]+\/api\/v1$/i.test(base) || (!allowInsecure && !base.startsWith('https://'))) {
       throw new ApiError('Set EXPO_PUBLIC_API_URL to your Laravel API ending in /api/v1.');
     }
@@ -88,7 +91,7 @@ export function createApi(baseUrl: string | undefined, allowInsecure = false) {
         },
         ...(body ? { body: multipart ? body : JSON.stringify(body) } : {}),
       });
-      const payload: ApiEnvelope<T> | null = await response.json().catch(() => null);
+      const payload: (T & ApiEnvelope<unknown>) | null = await response.json().catch(() => null);
 
       if (!response.ok || !payload || payload.success === false) {
         const validation = payload?.errors && Object.values(payload.errors).flat().find(Boolean);
@@ -106,6 +109,10 @@ export function createApi(baseUrl: string | undefined, allowInsecure = false) {
       clearTimeout(timeout);
       signal?.removeEventListener('abort', abort);
     }
+  }
+
+  function request<T>(path: string, options?: RequestOptions) {
+    return requestJson<ApiEnvelope<T>>(path, options);
   }
 
   function data<T>(response: ApiEnvelope<T>): T {
@@ -178,6 +185,19 @@ export function createApi(baseUrl: string | undefined, allowInsecure = false) {
     },
     async riderAvailability(token: string, online: boolean) {
       await request('/rider/availability', { token, method: 'PUT', body: { is_online: online } });
+    },
+    async pickupQueue(token: string, signal?: AbortSignal) {
+      const queue = await requestJson<PickupQueue>('/logistics/rider/pickups', { token, signal });
+      if (!Array.isArray(queue.nearby) || !Array.isArray(queue.assigned)) {
+        throw new ApiError('The server returned an incomplete pickup queue.');
+      }
+      return queue;
+    },
+    async pickupAction(token: string, id: string, action: PickupAction) {
+      await requestJson('/logistics/rider/pickups/' + encodeURIComponent(id) + '/' + action, { token, method: 'POST' });
+    },
+    async sharePickupLocation(token: string, latitude: number, longitude: number) {
+      await request('/rider/location', { token, method: 'POST', body: { consent: true, latitude, longitude } });
     },
     async assignedTrips(token: string, signal?: AbortSignal) {
       return data(await request<{ trips: AssignedTrip[] }>('/rider/delivery-trips/assigned', { token, signal })).trips;
